@@ -433,10 +433,10 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 
 ## 📬 Contact
 
-**Serghei Matenko**
+**Serghei Matenco**
 
 - Email: sergey.revo@outlook.com
-- LinkedIn: [serghei-matenko](https://linkedin.com/in/serghei-matenko)
+- LinkedIn: [serghei-matenco](https://linkedin.com/in/serghei-matenco)
 - GitHub: [@Revo69](https://github.com/Revo69)
 
 ---
