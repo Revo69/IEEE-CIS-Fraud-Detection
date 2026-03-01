@@ -41,26 +41,22 @@ USER root
 # Устанавливаем системные зависимости
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        # === Build tools ===
-        build-essential \
-        # Нужен для компиляции некоторых Python пакетов
-        
-        # === Network tools ===
-        curl \
-        wget \
-        netcat-traditional \
-        # curl/wget - для скачивания файлов
-        # netcat - для проверки доступности портов
-        
-        # === Git ===
-        git \
-        # Может понадобиться для клонирования репозиториев
-        
-        # === Utilities ===
-        vim \
-        nano \
-        # Текстовые редакторы (для дебага в контейнере)
-        
+    # === Build tools ===
+    build-essential \
+    # Нужен для компиляции некоторых Python пакетов
+    # === Network tools ===
+    curl \
+    wget \
+    netcat-traditional \
+    # curl/wget - для скачивания файлов
+    # netcat - для проверки доступности портов
+    # === Git ===
+    git \
+    # Может понадобиться для клонирования репозиториев
+    # === Utilities ===
+    vim \
+    nano \
+    # Текстовые редакторы (для дебага в контейнере)
     # Очищаем кеш apt для уменьшения размера образа
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -143,7 +139,7 @@ WORKDIR /opt/airflow
 # Встроенный healthcheck от базового образа уже есть
 # Но можем добавить свой:
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
-  CMD airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}" || exit 1
+    CMD airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}" || exit 1
 
 # Проверяет, что Scheduler работает
 # --interval: как часто проверять
