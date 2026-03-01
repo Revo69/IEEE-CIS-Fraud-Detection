@@ -18,8 +18,13 @@ Hello World DAG — проверочный пайплайн
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timedelta
 
+if "/opt/airflow" not in sys.path:
+    sys.path.insert(0, "/opt/airflow")
+
+# Airflow 3.x: импортируем из airflow.sdk
 from airflow.sdk import dag, task
 
 
