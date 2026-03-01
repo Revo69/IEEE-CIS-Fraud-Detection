@@ -1,0 +1,295 @@
+# ==============================================================================
+# IEEE-CIS Fraud Detection Pipeline - Docker Compose
+# ==============================================================================
+# Based on official Airflow 3.1.7 docker-compose.yaml
+# Adapted for fraud detection project with LocalExecutor
+#
+# Changes from official:
+# - Removed Redis (not needed for LocalExecutor)
+# - Removed Celery workers (not needed for LocalExecutor)
+# - Added our project volumes (src/, data/)
+# - Added our Python dependencies
+# - Simplified for single-machine development
+# ==============================================================================
+
+---
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.7}
+  # Если хотите использовать кастомный образ с предустановленными библиотеками:
+  # build:
+  #   context: .
+  #   dockerfile: ./docker/Dockerfile.airflow
+  
+  env_file:
+    - ${ENV_FILE_PATH:-.env}
+  
+  environment:
+    &airflow-common-env
+    # === Executor Configuration ===
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    # LocalExecutor - все задачи выполняются локально в subprocess
+    # Подходит для разработки и небольших проектов
+    
+    # === Auth Manager ===
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    
+    # === Database Configuration ===
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    
+    # === Celery (not used with LocalExecutor, but kept for compatibility) ===
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    
+    # === Security ===
+    AIRFLOW__CORE__FERNET_KEY: ''
+    # Пустой ключ для development (в production используйте реальный!)
+    
+    # === DAG Configuration ===
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    # Новые DAG'и не запускаются автоматически
+    
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # ⭐ Отключаем примеры DAG'ов (нам не нужны)
+    
+    # === Execution API ===
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    # Новая архитектура Airflow 3.x - API server для выполнения задач
+    
+    # === Health Check ===
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    
+    # === Custom Config ===
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    
+    # === Python Dependencies ===
+    # ⚠️ ВАЖНО: Устанавливаются при КАЖДОМ запуске!
+    # Для production используйте кастомный Dockerfile
+    _PIP_ADDITIONAL_REQUIREMENTS: >-
+      pandas==3.0.1
+      polars==1.39.0
+      duckdb==1.4.4
+      pyarrow==23.0.1
+      pydantic==2.12.5
+      pydantic-settings==2.5.0
+      python-dotenv==1.0.1
+      loguru==0.7.3
+      tqdm==4.67.1
+      psutil==6.1.1
+      google-cloud-storage==3.9.0
+      google-cloud-bigquery==3.40.0
+    
+  volumes:
+    # === Airflow Core Directories ===
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    
+    # === Our Project Directories ===
+    - ${AIRFLOW_PROJ_DIR:-.}/src:/opt/airflow/src
+    # Наш Python код (extract, transform, load)
+    
+    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+    # Данные проекта (raw, processed, duckdb)
+    
+  user: "${AIRFLOW_UID:-50000}:0"
+  
+  depends_on:
+    &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+    # ⭐ Убрали зависимость от Redis (не нужен для LocalExecutor)
+
+services:
+  # ============================================================================
+  # PostgreSQL - Database для метаданных Airflow
+  # ============================================================================
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+    ports:
+      - "5432:5432"
+      # ⭐ Добавили порт для доступа снаружи (для pgAdmin, DBeaver и т.д.)
+
+  # ============================================================================
+  # Airflow API Server - Новый компонент в Airflow 3.x
+  # ============================================================================
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+      # Web UI доступен на http://localhost:8080
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================================================
+  # Airflow Scheduler - "Мозг" системы
+  # ============================================================================
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================================================
+  # Airflow DAG Processor - Новый компонент в Airflow 3.x
+  # ============================================================================
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    # Отвечает за парсинг DAG файлов
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================================================
+  # Airflow Init - Инициализация (запускается один раз)
+  # ============================================================================
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # Проверка AIRFLOW_UID
+        if [[ -z "${AIRFLOW_UID}" ]]; then
+          echo
+          echo -e "\033[1;33mWARNING: AIRFLOW_UID not set!\e[0m"
+          echo "Using default: 50000"
+          echo
+          export AIRFLOW_UID=50000
+        fi
+        
+        # Проверка ресурсов (упрощенная)
+        one_meg=1048576
+        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
+        
+        if (( mem_available < 4000 )); then
+          echo
+          echo -e "\033[1;33mWARNING: Not enough memory!\e[0m"
+          echo "At least 4GB recommended. You have $$(numfmt --to iec $$((mem_available * one_meg)))"
+          echo
+        fi
+        
+        # Создание директорий
+        echo "Creating Airflow directories..."
+        mkdir -vp /opt/airflow/{logs,dags,plugins,config}
+        
+        # Airflow version
+        echo
+        echo "Airflow version:"
+        /entrypoint airflow version
+        
+        # Создание конфига
+        echo
+        echo "Creating default config..."
+        /entrypoint airflow config list >/dev/null
+        
+        # Изменение прав доступа
+        echo
+        echo "Setting permissions..."
+        chown -R "${AIRFLOW_UID}:0" /opt/airflow/
+        
+        echo
+        echo "✅ Initialization completed!"
+    
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    
+    user: "0:0"
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}:/sources
+
+  # ============================================================================
+  # Airflow CLI - Утилита для команд (опционально)
+  # ============================================================================
+  airflow-cli:
+    <<: *airflow-common
+    profiles:
+      - debug
+    # Запускается только с профилем: docker-compose --profile debug up
+    environment:
+      <<: *airflow-common-env
+      CONNECTION_CHECK_MAX_COUNT: "0"
+    command:
+      - bash
+      - -c
+      - airflow
+
+volumes:
+  postgres-db-volume:
+    # PostgreSQL данные сохраняются между перезапусками
+
+# ==============================================================================
+# ВАЖНЫЕ ЗАМЕЧАНИЯ
+# ==============================================================================
+#
+# 1. Новая архитектура Airflow 3.x:
+#    - airflow-apiserver: API и Web UI
+#    - airflow-scheduler: Планировщик задач
+#    - airflow-dag-processor: Парсинг DAG'ов
+#
+# 2. LocalExecutor:
+#    - Все задачи выполняются локально в subprocess
+#    - Не требует Redis или Celery
+#    - Подходит для разработки и небольших проектов
+#
+# 3. _PIP_ADDITIONAL_REQUIREMENTS:
+#    - Библиотеки устанавливаются при КАЖДОМ запуске (~30-60 сек)
+#    - Для быстрого старта используйте кастомный Dockerfile
+#
+# 4. Volumes:
+#    - ./dags - ваши DAG'и
+#    - ./src - Python код проекта
+#    - ./data - данные (raw, processed)
+#    - Изменения подхватываются автоматически!
+#
+# 5. Порты:
+#    - 8080: Airflow Web UI (login: admin/admin)
+#    - 5432: PostgreSQL (для pgAdmin)
+#
+# ==============================================================================

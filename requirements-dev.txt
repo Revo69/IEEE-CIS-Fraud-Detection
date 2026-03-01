@@ -1,0 +1,198 @@
+# ==============================================================================
+# IEEE-CIS Fraud Detection Pipeline - Development Dependencies
+# ==============================================================================
+# ✨ LATEST STABLE VERSIONS - February 2026
+# Modern dev stack for greenfield project
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing
+# ------------------------------------------------------------------------------
+pytest==8.3.4                   # Latest stable pytest 8.x
+pytest-cov==6.0.0               # Code coverage plugin
+pytest-xdist==3.6.1             # Parallel test execution
+pytest-mock==3.14.0             # Mock/stub plugin
+pytest-asyncio==0.24.0          # Async test support
+coverage==7.6.9                 # Code coverage measurement
+
+# Code Quality
+# ------------------------------------------------------------------------------
+black==24.10.0                  # Code formatter (latest stable)
+flake8==7.1.1                   # Linting tool
+isort==5.13.2                   # Import sorting
+mypy==1.13.0                    # Static type checker
+pylint==3.3.2                   # Advanced code analysis
+ruff==0.9.1                     # 🔥 Ultra-fast Python linter (Rust-based)
+                                # Alternative to flake8/black, 10-100x faster
+
+# Pre-commit Hooks
+# ------------------------------------------------------------------------------
+pre-commit==4.0.1               # Git hook framework
+
+# Documentation
+# ------------------------------------------------------------------------------
+mkdocs==1.6.1                   # Documentation generator
+mkdocs-material==9.5.47         # Material theme (actively updated)
+mkdocstrings[python]==0.27.0    # Python docstrings integration
+
+# Jupyter & Notebooks
+# ------------------------------------------------------------------------------
+jupyter==1.1.1                  # Jupyter metapackage
+jupyterlab==4.5.5               # 🔥 Latest JupyterLab (Feb 23, 2026)
+                                # NEW: Python 3.14 support, rspack bundling
+ipykernel==6.29.5               # IPython kernel
+ipywidgets==8.1.5               # Interactive widgets
+notebook==7.3.1                 # Classic Jupyter Notebook
+nbformat==5.10.4                # Notebook format
+
+# Visualization (для EDA notebooks)
+# ------------------------------------------------------------------------------
+matplotlib==3.10.0              # 🔥 Latest stable plotting library
+                                # NEW: Better performance, modern API
+seaborn==0.13.2                 # Statistical data visualization
+plotly==5.24.1                  # Interactive plots
+ipympl==0.9.5                   # Interactive matplotlib in Jupyter
+
+# Performance Profiling
+# ------------------------------------------------------------------------------
+line-profiler==4.2.0            # Line-by-line profiling
+py-spy==0.3.15                  # Sampling profiler (Rust-based)
+scalene==1.5.50                 # CPU+GPU+memory profiler
+
+# Data Quality & Schema  
+# ------------------------------------------------------------------------------
+pandera==0.20.4                 # Statistical data validation
+                                # Lightweight alternative to Great Expectations
+
+# Type Stubs (for mypy)
+# ------------------------------------------------------------------------------
+types-requests==2.32.0.20241016
+types-python-dateutil==2.9.0.20241003
+pandas-stubs==2.2.3.241217      # For Pandas type checking
+                                # Note: Pandas 3.0 has better native typing
+
+# Development Utilities
+# ------------------------------------------------------------------------------
+ipdb==0.13.13                   # IPython-enhanced debugger
+rich==13.9.4                    # Beautiful terminal output
+httpx==0.28.1                   # Modern HTTP client (async-first)
+
+# ==============================================================================
+# 🎯 KEY UPDATES IN DEV DEPENDENCIES
+# ==============================================================================
+#
+# JupyterLab 4.5.5 (Feb 23, 2026)
+# --------------------------------
+# - Switched from webpack to rspack (faster builds)
+# - Python 3.14 support added
+# - Improved iframe resizing
+# - Better search in file browser
+# - Modern React-based UI
+#
+# Ruff 0.9.1 (NEW!)
+# -----------------
+# - Replaces flake8 + isort + black (optional)
+# - 10-100x faster than traditional tools
+# - Rust-based, single binary
+# - Growing adoption in Python ecosystem
+# - Can gradually replace flake8
+#
+# Matplotlib 3.10.0
+# -----------------
+# - Better performance
+# - Modern API improvements
+# - Better integration with Jupyter
+#
+# Scalene 1.5.50 (NEW!)
+# ---------------------
+# - Advanced profiler: CPU + GPU + memory
+# - Line-by-line attribution
+# - Better than traditional profilers
+# - Optional: use for performance optimization
+#
+# ==============================================================================
+# 📊 TESTING STACK EXPLANATION
+# ==============================================================================
+#
+# Our testing approach:
+# 
+# 1. pytest 8.3.4 - Main test framework
+#    - Fastest, most popular Python test framework
+#    - Excellent plugin ecosystem
+#    - Better than unittest
+#
+# 2. pytest-cov 6.0.0 - Coverage reporting
+#    - Measures which code is tested
+#    - Goal: >80% coverage
+#    - Integrates with coverage.py
+#
+# 3. pytest-xdist 3.6.1 - Parallel execution
+#    - Run tests in parallel (-n auto)
+#    - Speeds up test suite significantly
+#    - Example: pytest -n auto
+#
+# 4. pytest-mock 3.14.0 - Mocking
+#    - Easy mocking in tests
+#    - Better than unittest.mock syntax
+#    - Example: mocker.patch()
+#
+# ==============================================================================
+# 🎨 CODE QUALITY STACK
+# ==============================================================================
+#
+# Option A: Traditional (stable)
+# -------------------------------
+# - black: Code formatting
+# - flake8: Linting
+# - isort: Import sorting
+# - mypy: Type checking
+#
+# Option B: Modern (fast)
+# -----------------------
+# - ruff: Formatting + linting + import sorting (ALL IN ONE!)
+# - mypy: Type checking
+#
+# For our project: Start with Option A, consider migrating to ruff later
+#
+# ==============================================================================
+# 📓 JUPYTER ECOSYSTEM
+# ==============================================================================
+#
+# JupyterLab 4.5.5 is our IDE for:
+# - Data exploration (EDA)
+# - Prototyping transformations
+# - Creating visualizations
+# - Documentation notebooks
+#
+# Extensions included:
+# - ipywidgets: Interactive controls
+# - ipympl: Interactive matplotlib plots
+# - nbformat: Notebook format handling
+#
+# Usage:
+# jupyter lab --notebook-dir=notebooks
+#
+# ==============================================================================
+# 🔍 PROFILING TOOLS (Optional)
+# ==============================================================================
+#
+# Three profilers for different needs:
+#
+# 1. line-profiler (line-by-line timing)
+#    Usage: kernprof -lv script.py
+#    Use when: Need detailed line-by-line timing
+#
+# 2. py-spy (sampling profiler)
+#    Usage: py-spy top -- python script.py
+#    Use when: Profiling production code without modification
+#
+# 3. scalene (CPU + GPU + memory)
+#    Usage: scalene script.py
+#    Use when: Need comprehensive performance analysis
+#    NEW: Advanced profiler, highly recommended!
+#
+# For our project Phase 1: Basic profiling with line-profiler
+# Phase 2-3: Advanced profiling with scalene
+#
+# ==============================================================================
