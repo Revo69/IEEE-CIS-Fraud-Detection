@@ -67,7 +67,7 @@ x-airflow-common:
     # Для production используйте кастомный Dockerfile
     _PIP_ADDITIONAL_REQUIREMENTS: >-
       pandas==3.0.1
-      polars==1.39.0
+      polars==1.38.1
       duckdb==1.4.4
       pyarrow==23.0.1
       pydantic==2.12.5
