@@ -44,6 +44,12 @@ class ProjectSettings(BaseSettings):
         description="Путь к файлу идентификаторов",
     )
 
+    # --- Пути к обработанным данным ---
+    parquet_dir: Path = Field(
+        default=PARQUET_DIR,
+        description="Директория для Parquet файлов",
+    )
+
     # --- DuckDB ---
     duckdb_path: Path = Field(
         default=DUCKDB_DIR / "fraud_detection.duckdb",
@@ -60,8 +66,8 @@ class ProjectSettings(BaseSettings):
 
     # --- Названия таблиц в DuckDB ---
     raw_transactions_table: str = "raw_transactions"
-    raw_identity_table: str    = "raw_identity"
-    staging_table: str         = "staging_fraud"
+    raw_identity_table: str     = "raw_identity"
+    staging_table: str          = "staging_fraud"
 
     class Config:
         # Читаем переменные окружения с префиксом FRAUD_
