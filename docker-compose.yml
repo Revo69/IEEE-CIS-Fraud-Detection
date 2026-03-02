@@ -62,6 +62,9 @@ x-airflow-common:
     # === Custom Config ===
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     
+    # === GAC Config (GCP) ===
+    GOOGLE_APPLICATION_CREDENTIALS: /home/airflow/.config/gcloud/application_default_credentials.json
+
     # === Python Dependencies ===
     # ⚠️ ВАЖНО: Устанавливаются при КАЖДОМ запуске!
     # Для production используйте кастомный Dockerfile
@@ -92,6 +95,9 @@ x-airflow-common:
     
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     # Данные проекта (raw, processed, duckdb)
+    
+    - ${APPDATA}/gcloud:/home/airflow/.config/gcloud:ro
+    # ADC (GCP)
     
   user: "${AIRFLOW_UID:-50000}:0"
   
