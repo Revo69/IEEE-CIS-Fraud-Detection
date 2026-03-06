@@ -96,6 +96,9 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     # Данные проекта (raw, processed, duckdb)
     
+    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/tests
+    # Тесты проекта
+
     - ${APPDATA}/gcloud:/home/airflow/.config/gcloud:ro
     # ADC (GCP)
     
