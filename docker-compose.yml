@@ -81,6 +81,8 @@ x-airflow-common:
       psutil==6.1.1
       google-cloud-storage==3.9.0
       google-cloud-bigquery==3.40.0
+      pytest==9.0.2
+      pytest-cov==7.0.0
     
   volumes:
     # === Airflow Core Directories ===
