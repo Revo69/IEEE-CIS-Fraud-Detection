@@ -33,10 +33,34 @@ def merge_tables(con: duckdb.DuckDBPyConnection) -> int:
     Используем LEFT JOIN — транзакции без identity тоже важны
     (их большинство: 590k транзакций, но только 144k с identity).
 
+    Колонки identity берём динамически — так код не падает
+    если в тестовой таблице меньше колонок чем в реальной.
+
     Returns:
         Количество строк после merge.
     """
     logger.info("Шаг 1/4: MERGE transactions + identity...")
+
+    # Получаем список колонок identity таблицы динамически.
+    # Исключаем TransactionID — он уже есть в транзакциях.
+    identity_cols = con.execute(f"""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = '{settings.raw_identity_table}'
+          AND column_name != 'TransactionID'
+        ORDER BY ordinal_position
+    """).fetchall()
+
+    # Формируем SQL для каждой колонки identity.
+    # DeviceType/DeviceInfo получают префикс id_, остальные берём как есть.
+    identity_select = []
+    for (col,) in identity_cols:
+        if col in ("DeviceType", "DeviceInfo"):
+            identity_select.append(f"i.{col} AS id_{col}")
+        else:
+            identity_select.append(f"i.{col}")
+
+    identity_sql = ",\n            ".join(identity_select)
 
     con.execute("DROP TABLE IF EXISTS merged_data")
 
@@ -46,22 +70,8 @@ def merge_tables(con: duckdb.DuckDBPyConnection) -> int:
             -- Все колонки из транзакций
             t.*,
 
-            -- Колонки из identity (с префиксом id_ чтобы не путаться)
-            i.DeviceType                    AS id_DeviceType,
-            i.DeviceInfo                    AS id_DeviceInfo,
-
-            -- Сетевые данные
-            i.id_01, i.id_02, i.id_03, i.id_04, i.id_05,
-            i.id_06, i.id_09, i.id_10, i.id_11,
-
-            -- Браузер / ОС
-            i.id_12, i.id_13, i.id_14, i.id_15,
-            i.id_16, i.id_17, i.id_18, i.id_19,
-            i.id_20, i.id_21, i.id_22, i.id_23,
-            i.id_24, i.id_25, i.id_26, i.id_27,
-            i.id_28, i.id_29, i.id_30, i.id_31,
-            i.id_32, i.id_33, i.id_34, i.id_35,
-            i.id_36, i.id_37, i.id_38,
+            -- Колонки из identity (динамически)
+            {identity_sql},
 
             -- Флаг: была ли запись в identity таблице
             CASE WHEN i.TransactionID IS NOT NULL
@@ -83,6 +93,7 @@ def merge_tables(con: duckdb.DuckDBPyConnection) -> int:
     logger.info(f"  ✓ Без identity данных  : {row_count - identity_count:,}")
 
     return row_count
+
 
 
 # ============================================================
