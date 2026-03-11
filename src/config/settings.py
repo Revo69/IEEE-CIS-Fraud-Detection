@@ -7,7 +7,7 @@
 
 from pathlib import Path
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 
 # ============================================================
@@ -31,6 +31,13 @@ class ProjectSettings(BaseSettings):
     Настройки читаются из переменных окружения или .env файла.
     Pydantic автоматически подхватывает их по имени.
     """
+
+    # Pydantic V2: используем model_config вместо class Config
+    model_config = ConfigDict(
+        env_prefix="FRAUD_",
+        env_file=".env",
+        extra="ignore",
+    )
 
     # --- Пути к исходным файлам ---
     raw_transaction_file: Path = Field(
@@ -87,11 +94,6 @@ class ProjectSettings(BaseSettings):
     @property
     def gcs_parquet_path(self) -> str:
         return f"gs://{self.gcs_bucket}/parquet/staging_fraud.parquet"
-
-    class Config:
-        env_prefix = "FRAUD_"
-        env_file = ".env"
-        extra = "ignore"
 
 
 # Глобальный экземпляр настроек
