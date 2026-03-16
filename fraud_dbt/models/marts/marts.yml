@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: stg_fraud
+    description: "Чистый staging слой — основа для всех mart моделей"
+    columns:
+      - name: transaction_id
+        tests:
+          - unique
+          - not_null
+      - name: is_fraud
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      - name: tx_hour
+        tests:
+          - not_null
+      - name: transaction_amt
+        tests:
+          - not_null
+
+  - name: fraud_summary
+    description: "Агрегации по картам: fraud rate, суммы, поведение"
+    columns:
+      - name: card1
+        tests:
+          - not_null
+      - name: fraud_rate_pct
+        tests:
+          - not_null
+
+  - name: fraud_hourly
+    description: "Распределение транзакций и фрода по часам суток"
+    columns:
+      - name: tx_hour
+        tests:
+          - unique
+          - not_null
