@@ -271,19 +271,21 @@ def engineer_features(con: duckdb.DuckDBPyConnection) -> int:
 
             -- === Временные признаки ===
             -- TransactionDT в секундах → переводим в часы/дни
-            (c.TransactionDT / 3600) % 24           AS tx_hour,
-            (c.TransactionDT / 86400) % 7           AS tx_day_of_week,
-            (c.TransactionDT / 86400)               AS tx_day,
+            -- FLOOR + CAST :: INTEGER — получаем целые числа
+            -- без FLOOR деление DOUBLE даёт 23.999... вместо 23
+            CAST(FLOOR(c.TransactionDT / 3600) % 24  AS INTEGER) AS tx_hour,
+            CAST(FLOOR(c.TransactionDT / 86400) % 7  AS INTEGER) AS tx_day_of_week,
+            CAST(FLOOR(c.TransactionDT / 86400)       AS INTEGER) AS tx_day,
 
             -- === Флаги ===
             -- Ночная транзакция (22:00 - 06:00) — подозрительнее
-            CASE WHEN (c.TransactionDT / 3600) % 24
+            CASE WHEN CAST(FLOOR(c.TransactionDT / 3600) % 24 AS INTEGER)
                       NOT BETWEEN 6 AND 21
                  THEN 1 ELSE 0
             END                                     AS is_night_tx,
 
             -- Выходной день (суббота=5, воскресенье=6)
-            CASE WHEN (c.TransactionDT / 86400) % 7
+            CASE WHEN CAST(FLOOR(c.TransactionDT / 86400) % 7 AS INTEGER)
                       IN (5, 6)
                  THEN 1 ELSE 0
             END                                     AS is_weekend,
