@@ -83,6 +83,7 @@ x-airflow-common:
       google-cloud-bigquery==3.40.0
       pytest==9.0.2
       pytest-cov==7.0.0
+      great-expectations==1.15.1
     
   volumes:
     # === Airflow Core Directories ===
