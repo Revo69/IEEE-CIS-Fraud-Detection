@@ -12,7 +12,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [0, 1]
+              arguments:
+                values: [0, 1]
       - name: tx_hour
         tests:
           - not_null
