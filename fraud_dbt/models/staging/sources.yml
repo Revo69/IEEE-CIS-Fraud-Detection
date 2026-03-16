@@ -2,41 +2,44 @@ version: 2
 
 sources:
   - name: fraud_detection
-    description: "IEEE-CIS Fraud Detection данные в BigQuery"
+    description: "IEEE-CIS Fraud Detection data in BigQuery"
     database: notional-life-489018-q1
     schema: fraud_detection
 
     tables:
       - name: staging_fraud
-        description: "Трансформированные данные после ETL пайплайна (590k транзакций)"
+        description: "Transformed data after ETL pipeline (590k transactions)"
 
         columns:
           - name: TransactionID
-            description: "Уникальный ID транзакции"
+            description: "Unique transaction ID"
             tests:
               - unique
               - not_null
 
           - name: isFraud
-            description: "Целевая переменная: 1=мошенничество, 0=норма"
+            description: "Target variable: 1=fraud, 0=legitimate"
             tests:
               - not_null
               - accepted_values:
-                  values: [0, 1]
-                  quote: false
+                  arguments:
+                    values: [0, 1]
+                    quote: false
 
           - name: TransactionAmt
-            description: "Сумма транзакции в USD"
+            description: "Transaction amount in USD"
             tests:
               - not_null
 
           - name: tx_hour
-            description: "Час транзакции (0-23)"
+            description: "Transaction hour (0-23)"
             tests:
               - not_null
 
           - name: has_identity
-            description: "Флаг: есть ли запись в identity таблице"
+            description: "Flag: whether identity record exists"
             tests:
               - accepted_values:
-                  values: [0, 1]
+                  arguments:
+                    values: [0, 1]
+                    quote: false
