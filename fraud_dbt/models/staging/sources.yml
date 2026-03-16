@@ -23,6 +23,7 @@ sources:
               - not_null
               - accepted_values:
                   values: [0, 1]
+                  quote: false
 
           - name: TransactionAmt
             description: "Сумма транзакции в USD"
