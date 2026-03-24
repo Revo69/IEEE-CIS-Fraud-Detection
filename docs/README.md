@@ -1,446 +1,379 @@
 # 🔍 IEEE-CIS Fraud Detection Pipeline
 
-> Modern, scalable ETL/ELT pipeline for fraud detection using DuckDB, Polars, and Apache Airflow
+> Production-ready ETL pipeline for fraud detection using DuckDB, Apache Airflow, Great Expectations, dbt and Google Cloud Platform
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Airflow](https://img.shields.io/badge/airflow-3.1.7-017CEE.svg)](https://airflow.apache.org/)
+[![DuckDB](https://img.shields.io/badge/duckdb-1.4.4-yellow.svg)](https://duckdb.org/)
+[![dbt](https://img.shields.io/badge/dbt-1.11.7-FF694B.svg)](https://www.getdbt.com/)
 [![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://img.shields.io/badge/tests-19%20passed-brightgreen.svg)]()
+[![GE](https://img.shields.io/badge/great%20expectations-16%2F16-brightgreen.svg)]()
+[![dbt tests](https://img.shields.io/badge/dbt%20tests-17%2F17-brightgreen.svg)]()
 
 ## 📋 Table of Contents
 
 - [About](#about)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
-- [Features](#features)
-- [Project Phases](#project-phases)
+- [Project Status](#project-status)
 - [Getting Started](#getting-started)
-- [Usage](#usage)
-- [Performance](#performance)
+- [Pipeline DAGs](#pipeline-dags)
+- [Data Quality](#data-quality)
 - [Testing](#testing)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
+- [dbt Models](#dbt-models)
+- [Performance](#performance)
+- [Contact](#contact)
 
 ## 🎯 About
 
-This project implements a production-ready data pipeline for processing IEEE-CIS fraud detection dataset (~590k transactions). The pipeline demonstrates modern data engineering practices including:
+End-to-end data engineering pipeline processing the [IEEE-CIS Fraud Detection dataset](https://www.kaggle.com/c/ieee-fraud-detection) (~590k transactions). Built to demonstrate production-grade data engineering practices.
 
-- **High-performance data processing** using DuckDB and Polars
-- **Orchestration** with Apache Airflow
-- **Cloud integration** with Google Cloud Platform (BigQuery, GCS)
-- **Data quality validation** with Great Expectations
-- **Containerization** with Docker
-- **Comprehensive testing** with pytest
+**Key numbers:**
 
-**Dataset**: [IEEE-CIS Fraud Detection (Kaggle)](https://www.kaggle.com/c/ieee-fraud-detection)
+- 590,540 transactions processed
+- 20,663 fraud cases (3.50% fraud rate)
+- 37 MB Parquet (from 1.5 GB CSV — 40x compression)
+- 19 pytest tests + 16 GE validations + 17 dbt tests — all green
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         PHASE 1: Foundation                      │
-│                                                                  │
-│  Raw CSV ──> DuckDB ──> Transform ──> Parquet ──> Analytics    │
-│              (staging)  (Polars)    (partitioned)   (DuckDB)    │
-│                                                                  │
-│              Orchestrated by Apache Airflow                      │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                    PHASE 2: Cloud Integration                    │
-│                                                                  │
-│  Parquet ──> GCS ──> BigQuery ──> Analytics Dashboard          │
-│            (storage) (warehouse)   (Looker Studio)              │
-│                                                                  │
-│              + Great Expectations Validation                     │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                 PHASE 3: Scale & Real-time (Future)             │
-│                                                                  │
-│  Kafka ──> Spark Streaming ──> Feature Store ──> ML Model      │
-│         (simulation)         (Redis/BigQuery)   (MLflow)        │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                     FULL PIPELINE OVERVIEW                          │
+│                                                                     │
+│  train_transaction.csv ─┐                                          │
+│                          ├─► DuckDB ─► Transform ─► Parquet        │
+│  train_identity.csv    ─┘   (raw)     (features)   (37 MB)        │
+│                                            │                        │
+│                                            ▼                        │
+│                                   Great Expectations                │
+│                                   (16 validations)                  │
+│                                            │                        │
+│                                            ▼                        │
+│                                 GCS Bucket ─► BigQuery             │
+│                                 (data lake)   (warehouse)           │
+│                                                    │                │
+│                                                    ▼                │
+│                                              dbt models             │
+│                                         (stg + marts layer)         │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow (Phase 1)
+### Data Flow (Airflow DAGs)
 
-```mermaid
-graph LR
-    A[Raw CSV] --> B[Extract]
-    B --> C[DuckDB Staging]
-    C --> D[Transform]
-    D --> E[Validate]
-    E --> F[Parquet]
-    E --> G[DuckDB Analytics]
-
-    style A fill:#e1f5ff
-    style F fill:#d4edda
-    style G fill:#d4edda
+```
+extract_raw_data
+      │
+      ▼
+transform_data
+      │
+      ▼
+validate_data          ← Great Expectations (16 checks)
+      │
+      ▼
+load_to_gcp            ← GCS + BigQuery
+      │
+      ▼
+dbt run                ← stg_fraud → fraud_hourly, fraud_summary
 ```
 
 ## 🛠️ Tech Stack
 
-### Core Technologies
+| Component            | Technology           | Version   | Purpose                       |
+| -------------------- | -------------------- | --------- | ----------------------------- |
+| **Orchestration**    | Apache Airflow       | 3.1.7     | DAG scheduling and monitoring |
+| **Data Processing**  | DuckDB               | 1.4.4 LTS | OLAP queries, staging         |
+| **DataFrames**       | Pandas               | 3.0.1     | Data manipulation             |
+| **Storage**          | Parquet + Snappy     | —         | Columnar, compressed storage  |
+| **Data Lake**        | Google Cloud Storage | —         | Parquet backup and staging    |
+| **Data Warehouse**   | BigQuery             | —         | Analytics and reporting       |
+| **Transformations**  | dbt                  | 1.11.7    | SQL models in BigQuery        |
+| **Data Quality**     | Great Expectations   | 1.15.1    | Data validation               |
+| **Testing**          | pytest + pytest-cov  | 9.0.2     | Unit and integration tests    |
+| **Config**           | Pydantic Settings    | 2.12.5    | Type-safe configuration       |
+| **Logging**          | Loguru               | 0.7.3     | Structured logging            |
+| **Containerization** | Docker Compose       | —         | Local dev environment         |
 
-| Component            | Technology                  | Purpose                                        |
-| -------------------- | --------------------------- | ---------------------------------------------- |
-| **Data Processing**  | DuckDB + Polars             | High-performance analytics and transformations |
-| **Orchestration**    | Apache Airflow              | Workflow management and scheduling             |
-| **Storage**          | Parquet (columnar)          | Efficient data storage with partitioning       |
-| **Cloud**            | Google Cloud Platform       | BigQuery (warehouse) + GCS (storage)           |
-| **Data Quality**     | Great Expectations          | Data validation and profiling                  |
-| **Testing**          | pytest + Great Expectations | Unit and integration tests                     |
-| **Containerization** | Docker Compose              | Local development environment                  |
+## 📊 Project Status
 
-### Why These Technologies?
+### Phase 1: Foundation ✅ Complete
 
-#### DuckDB
+ETL pipeline with Airflow orchestration and DuckDB.
 
-- **10-100x faster** than Pandas for analytical queries
-- SQL interface (leverage existing SQL skills)
-- Zero-configuration (embedded database)
-- Perfect for OLAP workloads
-
-#### Polars
-
-- **5-10x faster** than Pandas for transformations
-- Lazy evaluation (query optimization)
-- Efficient memory usage
-- Growing adoption in data engineering
-
-#### Parquet
-
-- Columnar storage (fast aggregations)
-- Excellent compression (~80% size reduction)
-- Schema evolution support
-- Industry standard for data lakes
-
-## ✨ Features
-
-### Phase 1 (Current) ✅
-
-- [x] CSV to DuckDB ingestion
-- [x] Data cleaning and validation
-- [x] Feature engineering pipeline
-- [x] Parquet export with partitioning
-- [x] Airflow DAG orchestration
+- [x] CSV ingestion → DuckDB (590k rows)
+- [x] Data cleaning (NULL handling: -999 / 'unknown')
+- [x] Feature engineering (temporal, flags, card aggregates)
+- [x] Parquet export with Snappy compression (37 MB)
+- [x] Airflow 3.x DAGs (TaskFlow API, `airflow.sdk`)
 - [x] Docker Compose setup
-- [x] Structured logging
-- [x] Unit tests
+- [x] Structured logging with Loguru
+- [x] Pydantic Settings configuration
 
-### Phase 2 (In Progress) 🚧
+**DAGs**: `extract_raw_data` → `transform_data`
 
-- [ ] Google Cloud Storage integration
-- [ ] BigQuery data warehouse
-- [ ] Great Expectations suite
-- [ ] Performance benchmarking
-- [ ] CI/CD with GitHub Actions
-- [ ] Incremental loading
+### Phase 2: Cloud & Quality ✅ Complete
 
-### Phase 3 (Planned) 📋
+GCP integration, data validation, dbt transformations, testing.
 
-- [ ] PySpark distributed processing
-- [ ] Streaming simulation with Kafka
-- [ ] Feature store implementation
-- [ ] ML model integration (MLflow)
-- [ ] Grafana monitoring dashboard
+- [x] Google Cloud Storage upload
+- [x] BigQuery load (WRITE_TRUNCATE, autodetect schema)
+- [x] GCP auth via Application Default Credentials (ADC)
+- [x] Great Expectations 1.15.1 — 16/16 validations passed
+- [x] dbt 1.11.7 — 3 models, 17/17 tests passed
+- [x] pytest — 19/19 unit tests passed
+- [x] DuckDB in-memory fixtures for fast testing
 
-## 🚀 Project Phases
+**DAGs**: `validate_data` → `load_to_gcp`
 
-### Phase 1: Foundation (Weeks 1-2)
+**dbt models**: `stg_fraud` (view) → `fraud_hourly`, `fraud_summary` (tables)
 
-**Goal**: Build reliable ETL pipeline with modern tools
+### Phase 3: CI/CD & ML ⏳ In Progress
 
-**Deliverables**:
+- [ ] CI/CD via GitHub Actions (pytest on every push)
+- [ ] MLflow experiment tracking
+- [ ] Baseline fraud detection model
 
-- Working Airflow DAG
-- DuckDB + Polars transformations
-- Partitioned Parquet output
-- Docker Compose setup
-- Unit tests (80%+ coverage)
-
-### Phase 2: Cloud & Quality (Weeks 3-4)
-
-**Goal**: Production-ready pipeline with cloud integration
-
-**Deliverables**:
-
-- GCP integration (BigQuery + GCS)
-- Data quality validation
-- Performance benchmarks
-- Enhanced monitoring
-- CI/CD pipeline
-
-### Phase 3: Scale & Real-time (Weeks 5-6)
-
-**Goal**: Demonstrate distributed processing and streaming
-
-**Deliverables**:
-
-- PySpark processing
-- Kafka streaming simulation
-- Feature store
-- ML integration
-
-## 🏁 Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
 ```bash
-# Required
-- Docker Desktop (20.10+)
-- Docker Compose (2.0+)
+- Docker Desktop 4.x+
 - Python 3.11+
 - Git
-
-# Optional
-- Google Cloud SDK (for Phase 2)
-- kubectl (for Kubernetes deployment)
+- Google Cloud SDK (for GCP integration)
 ```
 
 ### Quick Start
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/fraud-detection-pipeline.git
-cd fraud-detection-pipeline
+git clone https://github.com/Revo69/ieee-cis-fraud-detection.git
+cd ieee-cis-fraud-detection
 
 # 2. Copy environment variables
 cp .env.example .env
-# Edit .env with your configurations
+# Edit .env — set your GCP project, bucket, dataset
 
-# 3. Download dataset
-./scripts/download_data.sh
+# 3. Download dataset from Kaggle
+# Place files in data/raw/:
+#   train_transaction.csv
+#   train_identity.csv
 
-# 4. Start services
+# 4. Authenticate with GCP
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+
+# 5. Start Airflow
 docker-compose up -d
 
-# 5. Access Airflow UI
-open http://localhost:8080
-# Default credentials: airflow / airflow
+# 6. Open Airflow UI
+# http://localhost:8080
+# Login: admin / admin
 
-# 6. Trigger the DAG
-# Via UI or CLI:
-docker-compose exec airflow-scheduler airflow dags trigger fraud_etl_dag
+# 7. Run DAGs in order:
+#   extract_raw_data → transform_data → validate_data → load_to_gcp
 ```
 
-### Manual Setup (without Docker)
+### Environment Variables (.env)
 
-```bash
-# 1. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Initialize Airflow
-export AIRFLOW_HOME=$(pwd)/airflow
-airflow db init
-airflow users create \
-    --username admin \
-    --password admin \
-    --firstname Admin \
-    --lastname User \
-    --role Admin \
-    --email admin@example.com
-
-# 4. Start Airflow
-airflow webserver --port 8080 &
-airflow scheduler &
-```
-
-## 📖 Usage
-
-### Running the Pipeline
-
-```bash
-# Option 1: Airflow UI
-# Navigate to http://localhost:8080 and trigger "fraud_etl_dag"
-
-# Option 2: CLI
-docker-compose exec airflow-scheduler \
-    airflow dags trigger fraud_etl_dag
-
-# Option 3: Python script (for testing)
-python -m src.extract.csv_loader
-python -m src.transform.feature_engineering
-python -m src.load.parquet_writer
-```
-
-### Configuration
-
-Edit `.env` file:
-
-```bash
-# Data paths
-RAW_DATA_PATH=./data/raw
-PROCESSED_DATA_PATH=./data/processed
-DUCKDB_PATH=./data/duckdb/fraud_analytics.duckdb
-
-# Processing
-CHUNK_SIZE=50000
-N_JOBS=-1  # Use all CPU cores
-
+```env
 # Airflow
 AIRFLOW_UID=50000
-AIRFLOW_GID=0
+AIRFLOW_PROJ_DIR=.
+_AIRFLOW_WWW_USER_USERNAME=admin
+_AIRFLOW_WWW_USER_PASSWORD=admin
 
-# GCP (Phase 2)
-GCP_PROJECT_ID=your-project-id
-GCS_BUCKET=fraud-detection-bucket
-BQ_DATASET=fraud_analytics
+# GCP
+FRAUD_GCP_PROJECT=your-project-id
+FRAUD_GCS_BUCKET=your-bucket-name
+FRAUD_BIGQUERY_DATASET=fraud_detection
+GOOGLE_CLOUD_PROJECT=your-project-id
 ```
 
-### Querying Data (DuckDB)
+## 🔄 Pipeline DAGs
 
-```python
-import duckdb
+| DAG                | Description                                   | Phase |
+| ------------------ | --------------------------------------------- | ----- |
+| `hello_world`      | Environment check, library versions           | Test  |
+| `extract_raw_data` | CSV → DuckDB (590k rows)                      | 1     |
+| `transform_data`   | Merge + Clean + Feature Engineering → Parquet | 1     |
+| `validate_data`    | Great Expectations (16 checks)                | 2     |
+| `load_to_gcp`      | Parquet → GCS → BigQuery                      | 2     |
 
-# Connect to database
-con = duckdb.connect('data/duckdb/fraud_analytics.duckdb')
+## ✅ Data Quality
 
-# Example: Fraud rate by hour
-result = con.execute("""
-    SELECT
-        transaction_hour,
-        COUNT(*) as total_transactions,
-        SUM(isFraud) as fraud_count,
-        ROUND(100.0 * SUM(isFraud) / COUNT(*), 2) as fraud_rate_pct
-    FROM transactions
-    GROUP BY transaction_hour
-    ORDER BY transaction_hour
-""").df()
+### Great Expectations (16 validations)
 
-print(result)
+```
+Table level:
+  ✓ Row count between 500k–700k
+  ✓ Required columns exist
+
+Column level:
+  ✓ isFraud in {0, 1}, not null
+  ✓ isFraud mean between 1%–10% (fraud rate)
+  ✓ TransactionAmt not null
+  ✓ log_TransactionAmt >= 0, not null
+  ✓ ProductCD in {W, H, C, S, R, unknown}
+  ✓ P_emaildomain not null
+  ✓ tx_hour between 0–23
+  ✓ tx_day_of_week between 0–6
+  ✓ is_night_tx in {0, 1}
+  ✓ is_large_tx in {0, 1}
+  ✓ has_identity in {0, 1}
+  ✓ card1_tx_count >= 0
+
+Result: 16/16 PASSED ✅
 ```
 
-### Reading Parquet Files
+### dbt Tests (17 tests)
 
-```python
-import polars as pl
-
-# Read partitioned Parquet
-df = pl.read_parquet('data/processed/parquet/**/*.parquet')
-
-# Filter fraud transactions
-fraud_df = df.filter(pl.col('isFraud') == 1)
-
-# Aggregations
-summary = (
-    df
-    .group_by('card1')
-    .agg([
-        pl.col('TransactionAmt').mean().alias('avg_amount'),
-        pl.col('TransactionAmt').std().alias('std_amount'),
-        pl.count().alias('transaction_count')
-    ])
-)
 ```
+Source tests (staging_fraud):
+  ✓ TransactionID unique + not null
+  ✓ isFraud not null, accepted values [0, 1]
+  ✓ TransactionAmt not null
+  ✓ has_identity accepted values [0, 1]
+  ✓ tx_hour not null
 
-## ⚡ Performance
+Model tests (stg_fraud):
+  ✓ transaction_id unique + not null
+  ✓ is_fraud not null, accepted values [0, 1]
+  ✓ transaction_amt not null
+  ✓ tx_hour not null
 
-### Benchmarks (590k rows)
+Model tests (fraud_hourly, fraud_summary):
+  ✓ tx_hour unique + not null
+  ✓ card1 not null
+  ✓ fraud_rate_pct not null
 
-| Operation    | Pandas | Polars | DuckDB | Speedup     |
-| ------------ | ------ | ------ | ------ | ----------- |
-| Load CSV     | 2.3s   | 0.8s   | 0.5s   | **4.6x**    |
-| Aggregations | 5.1s   | 0.9s   | 0.4s   | **12.8x**   |
-| Joins        | 3.8s   | 1.2s   | 0.6s   | **6.3x**    |
-| Memory Usage | 2.1 GB | 0.8 GB | 0.3 GB | **7x less** |
-
-_Benchmarks run on MacBook Pro M1, 16GB RAM_
-
-### Optimization Techniques
-
-1. **Columnar Storage**: Parquet with Snappy compression
-2. **Partitioning**: By date and fraud label
-3. **Lazy Evaluation**: Polars query optimization
-4. **Type Downcasting**: Reduce memory footprint
-5. **Parallel Processing**: Multi-core utilization
+Result: 17/17 PASSED ✅
+```
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-pytest
+# Run all pytest tests
+docker-compose exec --user airflow airflow-apiserver \
+    python -m pytest tests/ -v
 
 # Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test suite
-pytest tests/unit/
-pytest tests/integration/
-
-# Run with verbose output
-pytest -v -s
+docker-compose exec --user airflow airflow-apiserver \
+    python -m pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-### Test Coverage Goals
+### pytest Results
 
-- Unit tests: **>80%** coverage
-- Integration tests: Critical paths
-- Data quality: Great Expectations suite
+```
+tests/unit/test_transformer.py::TestMergeTables::test_merge_preserves_all_transactions   PASSED
+tests/unit/test_transformer.py::TestMergeTables::test_merge_adds_has_identity_flag        PASSED
+tests/unit/test_transformer.py::TestMergeTables::test_merge_joins_device_info             PASSED
+tests/unit/test_transformer.py::TestMergeTables::test_merge_null_device_for_missing_identity PASSED
+tests/unit/test_transformer.py::TestCleanData::test_clean_fills_missing_email             PASSED
+tests/unit/test_transformer.py::TestCleanData::test_clean_fills_missing_addr              PASSED
+tests/unit/test_transformer.py::TestCleanData::test_clean_preserves_existing_values       PASSED
+tests/unit/test_transformer.py::TestCleanData::test_clean_row_count_unchanged             PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_tx_hour_range         PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_is_night_tx           PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_log_amount_positive   PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_card_aggregates_exist PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_is_large_tx           PASSED
+tests/unit/test_transformer.py::TestEngineerFeatures::test_features_row_count_preserved   PASSED
+tests/unit/test_transformer.py::TestSettings::test_settings_loads                         PASSED
+tests/unit/test_transformer.py::TestSettings::test_default_paths_are_absolute             PASSED
+tests/unit/test_transformer.py::TestSettings::test_table_names_not_empty                  PASSED
+tests/unit/test_transformer.py::TestSettings::test_gcp_project_set                        PASSED
+tests/unit/test_transformer.py::TestSettings::test_gcs_parquet_path_format                PASSED
 
-## 📚 Documentation
+19 passed in 2.14s ✅
+```
 
-Detailed documentation available in `/docs`:
+## 📦 dbt Models
 
-- [Architecture Overview](docs/architecture.md)
-- [Setup Guide](docs/setup.md)
-- [Phase 1 Implementation](docs/phase1.md)
-- [Phase 2 Implementation](docs/phase2.md)
-- [Performance Benchmarks](docs/performance.md)
-
-## 🤝 Contributing
-
-Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
-
-### Development Workflow
+```
+fraud_dbt/
+└── models/
+    ├── staging/
+    │   └── stg_fraud.sql          # view — cleaned source data
+    └── marts/
+        ├── fraud_hourly.sql       # table — fraud stats by hour
+        └── fraud_summary.sql      # table — fraud stats by card
+```
 
 ```bash
-# 1. Create feature branch
-git checkout -b feature/your-feature
-
-# 2. Install dev dependencies
-pip install -r requirements-dev.txt
-
-# 3. Install pre-commit hooks
-pre-commit install
-
-# 4. Make changes and test
-pytest
-
-# 5. Commit (will run pre-commit hooks)
-git commit -m "feat: your feature"
-
-# 6. Push and create PR
-git push origin feature/your-feature
+# Run dbt models
+cd fraud_dbt
+dbt run    # PASS=3
+dbt test   # PASS=17
+dbt docs generate && dbt docs serve  # documentation
 ```
 
-## 📝 License
+## ⚡ Performance
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
+| Operation            | Before | After               | Gain            |
+| -------------------- | ------ | ------------------- | --------------- |
+| CSV storage          | 1.5 GB | 37 MB (Parquet)     | **40x smaller** |
+| Extract (590k rows)  | —      | ~30s via DuckDB     | —               |
+| Transform + Features | —      | ~60s via DuckDB SQL | —               |
+| BigQuery load        | —      | ~90s via GCS        | —               |
+| dbt run (3 models)   | —      | ~15s                | —               |
+| pytest (19 tests)    | —      | 2.14s               | —               |
 
-## 🙏 Acknowledgments
+## 🔧 Project Structure
 
-- [IEEE-CIS Fraud Detection Dataset](https://www.kaggle.com/c/ieee-fraud-detection)
-- [DuckDB](https://duckdb.org/) - Fast OLAP database
-- [Polars](https://www.pola.rs/) - Lightning-fast DataFrame library
-- [Apache Airflow](https://airflow.apache.org/) - Workflow orchestration
+```
+ieee-cis-fraud-detection/
+├── dags/                          # Airflow DAGs
+│   ├── hello_world_dag.py
+│   ├── extract_raw_data_dag.py
+│   ├── transform_data_dag.py
+│   ├── validate_data_dag.py
+│   └── load_to_gcp_dag.py
+├── src/                           # Pipeline source code
+│   ├── config/
+│   │   └── settings.py            # Pydantic Settings
+│   ├── extract/
+│   │   └── csv_loader.py          # CSV → DuckDB
+│   ├── transform/
+│   │   └── transformer.py         # Merge + Clean + Features
+│   ├── validate/
+│   │   └── ge_validator.py        # Great Expectations
+│   ├── load/
+│   │   └── gcp_loader.py          # GCS + BigQuery
+│   └── utils/
+│       └── logger.py              # Loguru setup
+├── tests/
+│   ├── conftest.py                # pytest fixtures
+│   └── unit/
+│       └── test_transformer.py    # 19 unit tests
+├── fraud_dbt/                     # dbt project
+│   ├── models/
+│   │   ├── staging/stg_fraud.sql
+│   │   └── marts/
+│   │       ├── fraud_hourly.sql
+│   │       └── fraud_summary.sql
+│   └── dbt_project.yml
+├── data/
+│   ├── raw/                       # Source CSV files (gitignored)
+│   ├── processed/parquet/         # Output Parquet (gitignored)
+│   └── duckdb/                    # DuckDB file (gitignored)
+├── docker-compose.yml
+├── requirements.txt
+├── pytest.ini
+└── .env.example
+```
 
 ## 📬 Contact
 
-**Serghei Matenco**
+**Serghei Matenco** — Data Engineer
 
-- Email: sergey.revo@outlook.com
-- LinkedIn: [serghei-matenco](https://linkedin.com/in/serghei-matenco)
-- GitHub: [@Revo69](https://github.com/Revo69)
+- 📧 Email: sergey.revo@outlook.com
+- 💼 LinkedIn: [serghei-matenco](https://linkedin.com/in/serghei-matenco)
+- 🐙 GitHub: [@Revo69](https://github.com/Revo69)
 
 ---
 
 ⭐ **Star this repo** if you find it helpful!
-
-**Project Status**: 🚧 Phase 1 in progress (see [PROJECT_ROADMAP.md](docs/PROJECT_ROADMAP.md))
