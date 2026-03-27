@@ -1,0 +1,98 @@
+# ==============================================================================
+# CI Workflow: запускает pytest при каждом push и pull request
+# ==============================================================================
+#
+# Что происходит:
+# 1. GitHub создаёт чистую Ubuntu машину
+# 2. Устанавливает Python и зависимости из requirements-ci.txt
+# 3. Запускает pytest
+# 4. Показывает результат (✅ или ❌) прямо в репозитории
+#
+# Триггеры:
+# - push в ветки main и develop
+# - любой pull request в main
+
+name: CI — Run Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: pytest (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # Запускаем тесты на двух версиях Python
+        # Убеждаемся что код работает не только у нас локально
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      # ------------------------------------------------------------------
+      # Шаг 1: Скачиваем код репозитория на GitHub машину
+      # ------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # Шаг 2: Устанавливаем Python нужной версии
+      # ------------------------------------------------------------------
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          # Кэшируем pip зависимости — ускоряет повторные запуски
+          cache: "pip"
+          cache-dependency-path: requirements-ci.txt
+
+      # ------------------------------------------------------------------
+      # Шаг 3: Устанавливаем зависимости
+      # Используем requirements-ci.txt — облегчённый набор без Airflow/GCP
+      # ------------------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      # ------------------------------------------------------------------
+      # Шаг 4: Проверяем что все импорты работают
+      # Быстрая проверка до запуска тестов
+      # ------------------------------------------------------------------
+      - name: Verify imports
+        run: |
+          python -c "import duckdb; print(f'DuckDB: {duckdb.__version__}')"
+          python -c "import pandas; print(f'Pandas: {pandas.__version__}')"
+          python -c "import pydantic; print(f'Pydantic: {pydantic.__version__}')"
+
+      # ------------------------------------------------------------------
+      # Шаг 5: Запускаем pytest с coverage
+      # PYTHONPATH=. — чтобы Python видел папку src/ (как sys.path в коде)
+      # ------------------------------------------------------------------
+      - name: Run tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pytest tests/ -v \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --tb=short
+
+      # ------------------------------------------------------------------
+      # Шаг 6: Загружаем coverage отчёт в Codecov (опционально)
+      # Codecov — бесплатный сервис для визуализации coverage
+      # Можно убрать этот шаг если не хотите использовать Codecov
+      # ------------------------------------------------------------------
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'  # загружаем только один раз
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false  # не падаем если Codecov недоступен

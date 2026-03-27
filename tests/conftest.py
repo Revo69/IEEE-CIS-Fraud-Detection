@@ -1,19 +1,31 @@
 # conftest.py
 # ===========
-# Этот файл pytest читает автоматически перед запуском тестов.
-# Здесь живут fixtures — переиспользуемые объекты для тестов.
+# Общие fixtures для всех тестов.
 #
-# Что такое fixture?
-# Представьте что каждому тесту нужно DuckDB соединение.
-# Без fixture: создаёте соединение в каждом тесте вручную.
-# С fixture: описываете один раз здесь, pytest сам передаёт его.
+# Совместимость:
+# - Локально в Docker: /opt/airflow/src/...
+# - GitHub Actions:    ./src/... (PYTHONPATH=.)
+#
+# Решение: добавляем оба пути — один из них всегда сработает.
 
 import sys
+import os
 import pytest
 import duckdb
 
-# Добавляем корень проекта в путь — чтобы импортировать src.*
-sys.path.insert(0, "/opt/airflow")
+# Добавляем корень проекта в sys.path
+# Это позволяет импортировать src.* в любом окружении:
+# - Docker контейнер: /opt/airflow уже в PATH через docker-compose volume
+# - GitHub Actions: PYTHONPATH=. задан в workflow, но на всякий случай добавляем явно
+# - Локальный запуск: текущая директория
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+# Для Docker контейнера
+if "/opt/airflow" not in sys.path:
+    sys.path.insert(0, "/opt/airflow")
 
 
 # ============================================================
@@ -25,16 +37,12 @@ def duckdb_con():
     """
     Создаёт чистое DuckDB соединение в памяти для каждого теста.
 
-    Ключевое слово 'yield' — это точка разделения:
-    - Всё ДО yield: подготовка (setup)
-    - Всё ПОСЛЕ yield: очистка (teardown)
-
-    ':memory:' означает что база живёт только в RAM —
-    никаких файлов на диске, каждый тест начинает с чистого листа.
+    ':memory:' = база живёт только в RAM.
+    Каждый тест начинает с чистого листа — изоляция гарантирована.
     """
     con = duckdb.connect(":memory:")
     yield con
-    con.close()  # выполняется после каждого теста автоматически
+    con.close()
 
 
 # ============================================================
@@ -44,17 +52,12 @@ def duckdb_con():
 @pytest.fixture
 def sample_transactions(duckdb_con):
     """
-    Создаёт маленькую тестовую таблицу транзакций.
-    Имитирует структуру реального датасета IEEE-CIS.
-
-    Используем минимальный набор колонок —
-    достаточно чтобы проверить логику трансформаций.
+    Минимальная тестовая таблица транзакций.
+    Имитирует структуру IEEE-CIS датасета.
     """
     duckdb_con.execute("""
         CREATE TABLE raw_transactions AS
         SELECT * FROM (VALUES
-            -- TransactionID, isFraud, TransactionDT, TransactionAmt,
-            -- ProductCD, card1, card4, card6, addr1, P_emaildomain
             (1, 0, 86400,   100.0,  'W', 1001, 'visa',       'credit', 100, 'gmail.com'),
             (2, 1, 90000,   999.0,  'H', 1001, 'visa',       'credit', 100, 'yahoo.com'),
             (3, 0, 7200,     50.0,  'W', 1002, 'mastercard', 'debit',  200, 'gmail.com'),
@@ -67,8 +70,7 @@ def sample_transactions(duckdb_con):
         )
     """)
 
-    # Добавляем остальные колонки которые ожидает transformer
-    # (упрощённые — только то что нужно для тестов)
+    # Дополнительные колонки которые ожидает transformer
     duckdb_con.execute("""
         ALTER TABLE raw_transactions ADD COLUMN card2 DOUBLE DEFAULT -999;
         ALTER TABLE raw_transactions ADD COLUMN card3 DOUBLE DEFAULT -999;
@@ -122,18 +124,13 @@ def sample_transactions(duckdb_con):
 
 @pytest.fixture
 def sample_identity(sample_transactions):
-    """
-    Добавляет тестовую таблицу identity к существующему соединению.
-    Только для части транзакций — как в реальных данных.
-    """
+    """Добавляет тестовую таблицу identity."""
     sample_transactions.execute("""
         CREATE TABLE raw_identity AS
         SELECT * FROM (VALUES
-            -- TransactionID, DeviceType, DeviceInfo
             (1, 'desktop', 'Windows'),
             (2, 'mobile',  'iOS'),
             (3, 'desktop', 'MacOS')
-            -- транзакции 4, 5, 6 — без identity (как в реальных данных)
         ) AS t(TransactionID, DeviceType, DeviceInfo)
     """)
     return sample_transactions
