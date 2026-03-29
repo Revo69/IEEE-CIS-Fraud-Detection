@@ -77,6 +77,7 @@ htmlcov/
 # MLflow
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Temporary files
 *.tmp
