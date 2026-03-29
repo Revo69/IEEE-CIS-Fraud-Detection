@@ -45,7 +45,7 @@ jobs:
       # Шаг 2: Устанавливаем Python нужной версии
       # ------------------------------------------------------------------
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           # Кэшируем pip зависимости — ускоряет повторные запуски
@@ -91,8 +91,9 @@ jobs:
       # Можно убрать этот шаг если не хотите использовать Codecov
       # ------------------------------------------------------------------
       - name: Upload coverage report
-        uses: codecov/codecov-action@v4
-        if: matrix.python-version == '3.12'  # загружаем только один раз
+        uses: codecov/codecov-action@v6
+        if: matrix.python-version == '3.12'
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: false  # не падаем если Codecov недоступен
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true                    # полезно для отладки
