@@ -1,14 +1,16 @@
 # 🔍 IEEE-CIS Fraud Detection Pipeline
 
-> Production-ready ETL pipeline for fraud detection using DuckDB, Apache Airflow, Great Expectations, dbt and Google Cloud Platform
+> Production-ready ETL pipeline for fraud detection using DuckDB, Apache Airflow, Great Expectations, dbt, MLflow and Google Cloud Platform
 
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Airflow](https://img.shields.io/badge/airflow-3.1.7-017CEE.svg)](https://airflow.apache.org/)
 [![DuckDB](https://img.shields.io/badge/duckdb-1.4.4-yellow.svg)](https://duckdb.org/)
 [![dbt](https://img.shields.io/badge/dbt-1.11.7-FF694B.svg)](https://www.getdbt.com/)
+[![MLflow](https://img.shields.io/badge/mlflow-3.10.1-0194E2.svg)](https://mlflow.org/)
+[![CI](https://github.com/Revo69/ieee-cis-fraud-detection/actions/workflows/ci.yml/badge.svg)](https://github.com/Revo69/ieee-cis-fraud-detection/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-19%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/pytest-19%20passed-brightgreen.svg)]()
 [![GE](https://img.shields.io/badge/great%20expectations-16%2F16-brightgreen.svg)]()
 [![dbt tests](https://img.shields.io/badge/dbt%20tests-17%2F17-brightgreen.svg)]()
 
@@ -23,19 +25,22 @@
 - [Data Quality](#data-quality)
 - [Testing](#testing)
 - [dbt Models](#dbt-models)
+- [MLflow Experiments](#mlflow-experiments)
 - [Performance](#performance)
 - [Contact](#contact)
 
 ## 🎯 About
 
-End-to-end data engineering pipeline processing the [IEEE-CIS Fraud Detection dataset](https://www.kaggle.com/c/ieee-fraud-detection) (~590k transactions). Built to demonstrate production-grade data engineering practices.
+End-to-end data engineering pipeline processing the [IEEE-CIS Fraud Detection dataset](https://www.kaggle.com/c/ieee-fraud-detection) (~590k transactions). Built to demonstrate production-grade data engineering practices across the full stack.
 
 **Key numbers:**
 
 - 590,540 transactions processed
 - 20,663 fraud cases (3.50% fraud rate)
 - 37 MB Parquet (from 1.5 GB CSV — 40x compression)
-- 19 pytest tests + 16 GE validations + 17 dbt tests — all green
+- 19 pytest + 16 GE validations + 17 dbt tests — all green ✅
+- CI/CD: automated tests on every push via GitHub Actions ✅
+- 3 MLflow experiments tracked (best model: recall=0.65, roc_auc=0.74) ✅
 
 ## 🏗️ Architecture
 
@@ -58,10 +63,13 @@ End-to-end data engineering pipeline processing the [IEEE-CIS Fraud Detection da
 │                                                    ▼                │
 │                                              dbt models             │
 │                                         (stg + marts layer)         │
+│                                                                     │
+│  Parquet ──────────────────────────────────► MLflow                │
+│                                         (experiment tracking)       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow (Airflow DAGs)
+### Airflow DAG Flow
 
 ```
 extract_raw_data
@@ -91,7 +99,10 @@ dbt run                ← stg_fraud → fraud_hourly, fraud_summary
 | **Data Warehouse**   | BigQuery             | —         | Analytics and reporting       |
 | **Transformations**  | dbt                  | 1.11.7    | SQL models in BigQuery        |
 | **Data Quality**     | Great Expectations   | 1.15.1    | Data validation               |
+| **ML Tracking**      | MLflow               | 3.10.1    | Experiment tracking           |
+| **ML Models**        | scikit-learn         | 1.8.0     | Baseline fraud model          |
 | **Testing**          | pytest + pytest-cov  | 9.0.2     | Unit and integration tests    |
+| **CI/CD**            | GitHub Actions       | —         | Automated testing on push     |
 | **Config**           | Pydantic Settings    | 2.12.5    | Type-safe configuration       |
 | **Logging**          | Loguru               | 0.7.3     | Structured logging            |
 | **Containerization** | Docker Compose       | —         | Local dev environment         |
@@ -100,40 +111,32 @@ dbt run                ← stg_fraud → fraud_hourly, fraud_summary
 
 ### Phase 1: Foundation ✅ Complete
 
-ETL pipeline with Airflow orchestration and DuckDB.
-
-- [x] CSV ingestion → DuckDB (590k rows)
-- [x] Data cleaning (NULL handling: -999 / 'unknown')
-- [x] Feature engineering (temporal, flags, card aggregates)
+- [x] CSV ingestion → DuckDB (590k rows, ~30s)
+- [x] Data cleaning (NULL → -999 / 'unknown')
+- [x] Feature engineering: temporal, flags, card aggregates
 - [x] Parquet export with Snappy compression (37 MB)
-- [x] Airflow 3.x DAGs (TaskFlow API, `airflow.sdk`)
-- [x] Docker Compose setup
+- [x] Airflow 3.x DAGs with TaskFlow API (`airflow.sdk`)
+- [x] Docker Compose setup (4 containers)
 - [x] Structured logging with Loguru
 - [x] Pydantic Settings configuration
 
-**DAGs**: `extract_raw_data` → `transform_data`
-
 ### Phase 2: Cloud & Quality ✅ Complete
-
-GCP integration, data validation, dbt transformations, testing.
 
 - [x] Google Cloud Storage upload
 - [x] BigQuery load (WRITE_TRUNCATE, autodetect schema)
-- [x] GCP auth via Application Default Credentials (ADC)
+- [x] GCP auth via Application Default Credentials (no JSON keys)
 - [x] Great Expectations 1.15.1 — 16/16 validations passed
 - [x] dbt 1.11.7 — 3 models, 17/17 tests passed
 - [x] pytest — 19/19 unit tests passed
-- [x] DuckDB in-memory fixtures for fast testing
+- [x] DuckDB in-memory fixtures for fast isolated testing
 
-**DAGs**: `validate_data` → `load_to_gcp`
+### Phase 3: CI/CD & ML ✅ Complete
 
-**dbt models**: `stg_fraud` (view) → `fraud_hourly`, `fraud_summary` (tables)
-
-### Phase 3: CI/CD & ML ⏳ In Progress
-
-- [ ] CI/CD via GitHub Actions (pytest on every push)
-- [ ] MLflow experiment tracking
-- [ ] Baseline fraud detection model
+- [x] GitHub Actions CI — pytest on every push (Python 3.11 + 3.12)
+- [x] MLflow experiment tracking (SQLite backend)
+- [x] 3 baseline experiments: LogisticRegression variants
+- [x] Best model: balanced class weights (recall=0.65, roc_auc=0.74)
+- [x] Feature importance logging as MLflow artifacts
 
 ## 🚀 Getting Started
 
@@ -169,12 +172,22 @@ gcloud config set project YOUR_PROJECT_ID
 # 5. Start Airflow
 docker-compose up -d
 
-# 6. Open Airflow UI
-# http://localhost:8080
+# 6. Open Airflow UI → http://localhost:8080
 # Login: admin / admin
 
 # 7. Run DAGs in order:
 #   extract_raw_data → transform_data → validate_data → load_to_gcp
+
+# 8. Run dbt models
+cd fraud_dbt
+dbt run
+dbt test
+
+# 9. Run MLflow experiments
+cd ..
+python src/ml/train.py
+mlflow ui --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlartifacts
+# Open: http://localhost:5000
 ```
 
 ### Environment Variables (.env)
@@ -205,127 +218,107 @@ GOOGLE_CLOUD_PROJECT=your-project-id
 
 ## ✅ Data Quality
 
-### Great Expectations (16 validations)
+### Great Expectations (16/16 passed)
 
 ```
-Table level:
-  ✓ Row count between 500k–700k
-  ✓ Required columns exist
-
-Column level:
-  ✓ isFraud in {0, 1}, not null
-  ✓ isFraud mean between 1%–10% (fraud rate)
-  ✓ TransactionAmt not null
-  ✓ log_TransactionAmt >= 0, not null
-  ✓ ProductCD in {W, H, C, S, R, unknown}
-  ✓ P_emaildomain not null
-  ✓ tx_hour between 0–23
-  ✓ tx_day_of_week between 0–6
-  ✓ is_night_tx in {0, 1}
-  ✓ is_large_tx in {0, 1}
-  ✓ has_identity in {0, 1}
-  ✓ card1_tx_count >= 0
-
-Result: 16/16 PASSED ✅
+Table:    row count 500k–700k, required columns exist
+isFraud:  values in {0,1}, not null, mean between 1–10%
+Amount:   not null, log_amount >= 0
+Features: tx_hour 0–23, day_of_week 0–6
+Flags:    is_night_tx, is_large_tx, has_identity in {0,1}
+Cards:    card1_tx_count >= 0, P_emaildomain not null
 ```
 
-### dbt Tests (17 tests)
+### dbt Tests (17/17 passed)
 
 ```
-Source tests (staging_fraud):
-  ✓ TransactionID unique + not null
-  ✓ isFraud not null, accepted values [0, 1]
-  ✓ TransactionAmt not null
-  ✓ has_identity accepted values [0, 1]
-  ✓ tx_hour not null
-
-Model tests (stg_fraud):
-  ✓ transaction_id unique + not null
-  ✓ is_fraud not null, accepted values [0, 1]
-  ✓ transaction_amt not null
-  ✓ tx_hour not null
-
-Model tests (fraud_hourly, fraud_summary):
-  ✓ tx_hour unique + not null
-  ✓ card1 not null
-  ✓ fraud_rate_pct not null
-
-Result: 17/17 PASSED ✅
+Source:  TransactionID unique+not_null, isFraud values, amounts not null
+Models:  stg_fraud, fraud_hourly, fraud_summary — all constraints pass
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Run all pytest tests
+# Run inside Docker container
 docker-compose exec --user airflow airflow-apiserver \
     python -m pytest tests/ -v
 
-# Run with coverage
-docker-compose exec --user airflow airflow-apiserver \
-    python -m pytest tests/ --cov=src --cov-report=term-missing
+# Run locally
+PYTHONPATH=. python -m pytest tests/ -v --cov=src
+
+# CI/CD: runs automatically on every push to main/develop
 ```
 
-### pytest Results
+### pytest Results (19/19 passed in 2.14s)
 
 ```
-tests/unit/test_transformer.py::TestMergeTables::test_merge_preserves_all_transactions   PASSED
-tests/unit/test_transformer.py::TestMergeTables::test_merge_adds_has_identity_flag        PASSED
-tests/unit/test_transformer.py::TestMergeTables::test_merge_joins_device_info             PASSED
-tests/unit/test_transformer.py::TestMergeTables::test_merge_null_device_for_missing_identity PASSED
-tests/unit/test_transformer.py::TestCleanData::test_clean_fills_missing_email             PASSED
-tests/unit/test_transformer.py::TestCleanData::test_clean_fills_missing_addr              PASSED
-tests/unit/test_transformer.py::TestCleanData::test_clean_preserves_existing_values       PASSED
-tests/unit/test_transformer.py::TestCleanData::test_clean_row_count_unchanged             PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_tx_hour_range         PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_is_night_tx           PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_log_amount_positive   PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_card_aggregates_exist PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_is_large_tx           PASSED
-tests/unit/test_transformer.py::TestEngineerFeatures::test_features_row_count_preserved   PASSED
-tests/unit/test_transformer.py::TestSettings::test_settings_loads                         PASSED
-tests/unit/test_transformer.py::TestSettings::test_default_paths_are_absolute             PASSED
-tests/unit/test_transformer.py::TestSettings::test_table_names_not_empty                  PASSED
-tests/unit/test_transformer.py::TestSettings::test_gcp_project_set                        PASSED
-tests/unit/test_transformer.py::TestSettings::test_gcs_parquet_path_format                PASSED
-
-19 passed in 2.14s ✅
+TestMergeTables      4/4  — LEFT JOIN logic, has_identity flag
+TestCleanData        4/4  — NULL filling, value preservation
+TestEngineerFeatures 6/6  — tx_hour, is_night_tx, log_amount, card aggregates
+TestSettings         5/5  — paths, table names, GCP config
 ```
 
 ## 📦 dbt Models
 
 ```
-fraud_dbt/
-└── models/
-    ├── staging/
-    │   └── stg_fraud.sql          # view — cleaned source data
-    └── marts/
-        ├── fraud_hourly.sql       # table — fraud stats by hour
-        └── fraud_summary.sql      # table — fraud stats by card
+fraud_dbt/models/
+├── staging/
+│   └── stg_fraud.sql          # view — cleaned source data
+└── marts/
+    ├── fraud_hourly.sql        # table — fraud rate by hour of day
+    └── fraud_summary.sql       # table — fraud stats by card
 ```
 
 ```bash
-# Run dbt models
 cd fraud_dbt
-dbt run    # PASS=3
-dbt test   # PASS=17
-dbt docs generate && dbt docs serve  # documentation
+dbt run     # PASS=3  (3 models built)
+dbt test    # PASS=17 (17 data tests)
+dbt docs generate && dbt docs serve
+```
+
+## 🤖 MLflow Experiments
+
+Three LogisticRegression experiments on 590k transactions (22 features):
+
+| Run           | class_weight | accuracy   | precision | recall     | f1     | roc_auc    |
+| ------------- | ------------ | ---------- | --------- | ---------- | ------ | ---------- |
+| baseline_C1.0 | None         | **0.9653** | 0.8235    | 0.0102     | 0.0201 | 0.7360     |
+| balanced_C1.0 | balanced     | 0.6985     | 0.0731    | **0.6523** | 0.1315 | **0.7409** |
+| balanced_C0.1 | balanced     | 0.6985     | 0.0732    | **0.6526** | 0.1316 | **0.7409** |
+
+**Key insight:** For fraud detection, `recall` matters more than `accuracy`.
+Baseline looks great (96.5% accuracy) but catches only 1% of fraud.
+Balanced model catches 65% of fraud — the right choice for this problem.
+
+**Top features (by coefficient magnitude):** `C2`, `C11`, `addr1`, `has_identity`, `C1`
+
+```bash
+# Run experiments
+python src/ml/train.py
+
+# View results in MLflow UI
+mlflow ui --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlartifacts
+# Open: http://localhost:5000
 ```
 
 ## ⚡ Performance
 
-| Operation            | Before | After               | Gain            |
-| -------------------- | ------ | ------------------- | --------------- |
-| CSV storage          | 1.5 GB | 37 MB (Parquet)     | **40x smaller** |
-| Extract (590k rows)  | —      | ~30s via DuckDB     | —               |
-| Transform + Features | —      | ~60s via DuckDB SQL | —               |
-| BigQuery load        | —      | ~90s via GCS        | —               |
-| dbt run (3 models)   | —      | ~15s                | —               |
-| pytest (19 tests)    | —      | 2.14s               | —               |
+| Operation                 | Result                   |
+| ------------------------- | ------------------------ |
+| CSV → Parquet compression | 1.5 GB → 37 MB (**40x**) |
+| Extract (590k rows)       | ~30s via DuckDB          |
+| Transform + Features      | ~60s via DuckDB SQL      |
+| BigQuery load             | ~90s via GCS             |
+| dbt run (3 models)        | ~15s                     |
+| pytest (19 tests)         | **2.14s**                |
+| MLflow (3 experiments)    | ~60s total               |
 
 ## 🔧 Project Structure
 
 ```
 ieee-cis-fraud-detection/
+├── .github/workflows/
+│   └── ci.yml                     # GitHub Actions CI
 ├── dags/                          # Airflow DAGs
 │   ├── hello_world_dag.py
 │   ├── extract_raw_data_dag.py
@@ -333,35 +326,29 @@ ieee-cis-fraud-detection/
 │   ├── validate_data_dag.py
 │   └── load_to_gcp_dag.py
 ├── src/                           # Pipeline source code
-│   ├── config/
-│   │   └── settings.py            # Pydantic Settings
-│   ├── extract/
-│   │   └── csv_loader.py          # CSV → DuckDB
-│   ├── transform/
-│   │   └── transformer.py         # Merge + Clean + Features
-│   ├── validate/
-│   │   └── ge_validator.py        # Great Expectations
-│   ├── load/
-│   │   └── gcp_loader.py          # GCS + BigQuery
-│   └── utils/
-│       └── logger.py              # Loguru setup
+│   ├── config/settings.py         # Pydantic Settings
+│   ├── extract/csv_loader.py      # CSV → DuckDB
+│   ├── transform/transformer.py   # Merge + Clean + Features
+│   ├── validate/ge_validator.py   # Great Expectations
+│   ├── load/gcp_loader.py         # GCS + BigQuery
+│   ├── ml/train.py                # MLflow experiments
+│   └── utils/logger.py            # Loguru setup
 ├── tests/
-│   ├── conftest.py                # pytest fixtures
-│   └── unit/
-│       └── test_transformer.py    # 19 unit tests
+│   ├── conftest.py                # pytest fixtures (DuckDB in-memory)
+│   └── unit/test_transformer.py   # 19 unit tests
 ├── fraud_dbt/                     # dbt project
-│   ├── models/
-│   │   ├── staging/stg_fraud.sql
-│   │   └── marts/
-│   │       ├── fraud_hourly.sql
-│   │       └── fraud_summary.sql
-│   └── dbt_project.yml
+│   ├── models/staging/stg_fraud.sql
+│   └── models/marts/
+│       ├── fraud_hourly.sql
+│       └── fraud_summary.sql
 ├── data/
-│   ├── raw/                       # Source CSV files (gitignored)
+│   ├── raw/                       # Source CSV (gitignored)
 │   ├── processed/parquet/         # Output Parquet (gitignored)
 │   └── duckdb/                    # DuckDB file (gitignored)
 ├── docker-compose.yml
-├── requirements.txt
+├── requirements.txt               # Production deps
+├── requirements-dev.txt           # Dev deps (pytest, ruff, jupyter)
+├── requirements-ci.txt            # CI deps (lightweight)
 ├── pytest.ini
 └── .env.example
 ```
