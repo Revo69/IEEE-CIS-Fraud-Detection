@@ -37,7 +37,7 @@ End-to-end data engineering pipeline processing the [IEEE-CIS Fraud Detection da
 
 - 590,540 transactions processed
 - 20,663 fraud cases (3.50% fraud rate)
-- 37 MB Parquet (from 1.5 GB CSV — 40x compression)
+- 28 MB Parquet (from 667 MB CSV — 24x compression)
 - 19 pytest + 16 GE validations + 17 dbt tests — all green ✅
 - CI/CD: automated tests on every push via GitHub Actions ✅
 - 3 MLflow experiments tracked (best model: recall=0.65, roc_auc=0.74) ✅
